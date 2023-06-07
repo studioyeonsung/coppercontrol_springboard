@@ -1,0 +1,249 @@
+
+<!doctype html>
+<html>
+
+<head>
+	<title>Copper Control | Studio Merlijn</title>
+	<!--For offline ESP graphs see this tutorial https://circuits4you.com/2018/03/10/esp8266-jquery-and-ajax-web-server/ -->
+	<script src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.min.js"></script>	
+	<style>
+
+
+
+	canvas{
+		-moz-user-select: none;
+		-webkit-user-select: none;
+		-ms-user-select: none;
+	}
+
+  body {
+    overflow: hidden;
+    font-family: 'Arial';
+    margin: 0;
+    background-color: #221E20;
+    padding: 0;
+  }
+
+  h1 {
+    color: #9BFD06;
+    text-align: center;
+    margin-top: 40px;
+    margin-bottom: 0;
+  }
+  .container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  .chart-container, .data-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-direction: row;
+    height: 50vh;
+    padding: 20px;
+  }
+
+  .chart-container {
+    background-color: #221E20;
+    margin-top: 10px;
+    height:100%;
+    min-height: 50vh;
+  }
+
+  .data-container {
+    background-color: #221E20;
+  }
+
+  .cell-container {
+    height: 30%;
+    width: 15%;
+    min-width: 15%;
+    max-width: 15%;
+    padding: 3%;
+    border: 2px solid #9BFD06;
+    margin-right: 3%;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .label {
+    align-self: flex-start;
+    margin-bottom: 20px;
+    color: #9BFD06;
+  }
+
+  .cell {
+    text-align: center;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    width: 100%;
+    align-self: flex-end;
+    font-size: 48px;
+    background-color:transparent;
+    display: flex;
+    color: #9BFD06;
+  }
+
+  .cell-container:first-child {
+    margin-left: 2%;
+  }
+
+  .cell-container:last-child {
+    margin-right: 2%;
+  }
+
+	</style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>A Heartbeat of Copper</h1>
+    <div class="chart-container">
+        <canvas id="Chart"></canvas>
+    </div>
+    <div class="data-container">
+      <div class="cell-container">
+        <div class="label">Time</div>
+        <div id="cell1" class="cell"></div>
+      </div>
+
+      <div class="cell-container">
+        <div class="label">Copper price ($)</div>
+        <div id="cell2" class="cell"></div>
+      </div>
+          
+      <div class="cell-container">
+        <div class="label">Voltage (V)</div>
+        <div id="cell3" class="cell"></div>
+      </div>
+
+      <div class="cell-container">
+        <div class="label">Installation Price ($)</div>
+        <div id="cell4" class="cell"></div>
+      </div>
+          
+      
+    </div>
+  </div>
+
+  <script>
+    // global variables
+    var maxValues = 6;
+    var PriceValues = [2.76,2.34,2.53,2.54,2.52,2.57];
+    var voltageValues = [3.21,3.03,3.11,3.12,3.10,2.21];
+    var timeStamp = [];
+    function showGraph()
+
+    {
+        for (i = 0; i < arguments.length; i++) {
+          PriceValues.push(arguments[i]);    
+        }
+
+        var ctx = document.getElementById("Chart").getContext('2d');
+        var Chart2 = new Chart(ctx, {
+            type: 'line',
+            responsive: true,
+            data: {
+                labels: timeStamp,	//Bottom Labeling
+                datasets: [{
+                    label: "$/pound",
+                    // backgroundColor: 'rgba( 200, 156, 18 , 1)', //Dot marker color
+                    borderColor: 'rgb(155, 253, 6)',	//Graph Line Color
+                    data: PriceValues,
+                }],
+            },
+            options: {
+                maintainAspectRatio: false,
+                legend: {
+                  display: true,
+                  position: 'top',
+                  labels: {
+                    fontColor: 'rgb(155, 253, 6)',
+                    fontFamily: 'Arial',
+                    fontSize: 24,
+                    boxWidth: 50,
+                  }
+                },
+                title: {
+                        display: false,
+                        text: "Current $/pound"
+                    },
+                maintainAspectRatio: false,
+                elements: {
+                line: {
+                      tension: 0.7 //Smoothening (Curved) of data lines
+                    }
+                },
+                scales: {
+                        yAxes: [{
+                            ticks: {
+                                beginAtZero:true
+                            }
+                        }]
+                }
+            }
+        });
+
+    }
+
+    //On Page load show graphs
+    window.onload = function() {
+      console.log(new Date().toLocaleTimeString());
+      showGraph();
+    };
+
+    //Ajax script to get copperprice every X miliseconds 
+    //Read This tutorial https://circuits4you.com/2018/02/04/esp8266-ajax-update-part-of-web-page-without-refreshing/
+    setInterval(function() {
+      // Call a function repetatively with 60 Second interval
+      getData();
+    }, 60000); //X mSeconds update rate
+
+    // math functions
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+    function map(value, in_min, in_max, out_min, out_max) {
+      return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+    }
+    function getRandomFloat(min, max) {
+  	return Math.random() * (max - min) + min;
+	}
+    var copperPrice = 2.0;
+    function getData() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (1){//this.readyState == 4 && this.status == 200) {
+          //Push the data in array
+          var time = new Date().toLocaleTimeString();
+          copperPrice = getRandomFloat(3, 4).toFixed(2); 
+          PriceValues.push(copperPrice);
+          timeStamp.push(time);
+          showGraph();	//Update Graphs
+          var voltage = clamp(map(copperPrice, 2.0, 3.5, 0.0, 5.0), 0.0, 5.0);  
+          voltageValues.push(voltage);
+          //Update Data Table    
+          var cell1 = document.getElementById("cell1")
+          var cell2 = document.getElementById("cell2")
+          var cell3 = document.getElementById("cell3")
+          var cell4 = document.getElementById("cell4")
+
+          cell1.innerHTML = time;
+          cell2.innerHTML = copperPrice;
+          cell3.innerHTML = voltage;
+          cell4.innerHTML = copperPrice*500;
+        }
+      };
+      xhttp.open("GET", "readCopperPrice", true);	//Handle readCopperPrice server on ESP8266
+      xhttp.send();s
+    }
+  </script>
+</body>
+</html>
